@@ -1,5 +1,6 @@
 package webserver;
 
+import model.User;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -25,6 +27,8 @@ public class RequestHandler extends Thread {
 
     private static final String GET = "GET";
     private static final String POST = "POST";
+
+    private static final String LOGIN_KEY = "logined";
 
     public RequestHandler(Socket connectionSocket) {
         this.connection = connectionSocket;
@@ -42,13 +46,29 @@ public class RequestHandler extends Thread {
             String line = bufferedReader.readLine();
             String[] requestLine = line.split(StringUtils.SPACE);
 
+            boolean logined = false;
+            int contentLength = 0;
+            Map<String, String> cookies;
+            while (StringUtils.isNotBlank(line)) {
+                line = bufferedReader.readLine();
+                System.out.println(line);
+                if (line.contains("Cookie")) {
+                    String cookieValue = line.split(":")[1].trim();
+                    cookies = HttpRequestUtils.parseCookies(cookieValue);
+                    logined = isLogin(cookies);
+                } else if (line.contains("Content-Length")) {
+                   contentLength = Integer.parseInt(HttpRequestUtils.parseHeader(line).getValue());
+                }
+            }
+
             DataOutputStream dos = new DataOutputStream(out);
 
             if (StringUtils.equals(requestLine[METHOD], GET)) {
-                getMapping(dos, requestLine);
+                getMapping(dos, requestLine, logined);
             } else if (StringUtils.equals(requestLine[METHOD], POST)) {
-                String body = getBody(bufferedReader);
-                postMapping(dos, requestLine, body);
+                String body = IOUtils.readData(bufferedReader, contentLength);
+                Map<String, String> params = HttpRequestUtils.parseQueryString(body);
+                postMapping(dos, requestLine, params, logined);
             }
 
         } catch (IOException e) {
@@ -56,21 +76,7 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private String getBody(BufferedReader bufferedReader) throws IOException {
-        String body = StringUtils.EMPTY;
-        String headerLine = bufferedReader.readLine();
-        while (StringUtils.isNotBlank(headerLine)) {
-            headerLine = bufferedReader.readLine();
-            if (headerLine.contains("Content-Length")) {
-                int contentLength = Integer.parseInt(HttpRequestUtils.parseHeader(headerLine).getValue());
-                body = IOUtils.readData(bufferedReader, contentLength);
-                break;
-            }
-        }
-        return body;
-    }
-
-    private void getMapping(DataOutputStream dos, String[] requestLine) throws IOException {
+    private void getMapping(DataOutputStream dos, String[] requestLine, boolean logined) throws IOException {
         String url = requestLine[URL];
         String requestPath = url;
         String paramsString = StringUtils.EMPTY;
@@ -88,7 +94,7 @@ public class RequestHandler extends Thread {
         } else if (StringUtils.equals(requestPath, "/user/create")) {
             Map<String, String> params = HttpRequestUtils.parseQueryString(paramsString);
             userService.addUser(params);
-            ResponseHandler.response302Header(dos, "/index.html");
+            ResponseHandler.response302Header(dos, "/index.html", logined);
         } else {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
             ResponseHandler.response200Header(dos, bytes.length);
@@ -96,12 +102,27 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private void postMapping(DataOutputStream dos, String[] requestLine, String body) throws IOException {
+    private void postMapping(DataOutputStream dos, String[] requestLine, Map<String, String> params, boolean logined) throws IOException {
         if (StringUtils.equals(requestLine[URL], "/user/create")) {
-            Map<String, String> params = HttpRequestUtils.parseQueryString(body);
             userService.addUser(params);
-            ResponseHandler.response302Header(dos, "/index.html");
+            ResponseHandler.response302Header(dos, "/index.html", logined);
+        } else if (StringUtils.equals(requestLine[URL], "/user/login")) {
+            System.out.println("@@@@@@@@@@@@@@@@@@@@@@@@");
+            User user = userService.findUserById(params.get("userId"));
+            System.out.println(user);
+
+            if (user == null) {
+                ResponseHandler.response302Header(dos, "/user/login_failed.html", false);
+            }
+            ResponseHandler.response302Header(dos, "/index.html", true);
+            System.out.println("@@@@@@@@@@@@@@@@@@@@@@@@");
         }
+    }
+
+    private boolean isLogin(Map<String, String> cookies) {
+        return Optional.ofNullable(cookies.get(LOGIN_KEY))
+                .map(Boolean::valueOf)
+                .orElse(false);
     }
 
     private Path viewResolver(String url) {

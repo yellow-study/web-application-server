@@ -19,14 +19,14 @@ public class UserService {
         DataBase.addUser(user);
     }
 
-    public static User findUserById(String userId) {
+    public User findUserById(String userId) {
         if(userId == null) {
             return null;
         }
         return DataBase.findUserById(userId);
     }
 
-    public static Collection<User> findAll() {
+    public Collection<User> findAll() {
         return DataBase.findAll();
     }
 }

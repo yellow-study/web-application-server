@@ -23,10 +23,11 @@ public class ResponseHandler {
         }
     }
 
-    public static void response302Header(DataOutputStream dos, String url) {
+    public static void response302Header(DataOutputStream dos, String url, boolean logined) {
         try {
             dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
             dos.writeBytes("Location: " + url + "\r\n");
+            dos.writeBytes("Set-Cookie: logined=" + logined + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
