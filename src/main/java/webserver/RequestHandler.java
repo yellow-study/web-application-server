@@ -1,13 +1,17 @@
 package webserver;
 
+import db.DataBase;
+import model.User;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.HttpRequestUtils;
 
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -50,19 +54,34 @@ public class RequestHandler extends Thread {
     private void requestMapping(String line, DataOutputStream dos) throws IOException {
         String[] requestLine = line.split(SPACE);
         String url = requestLine[URL];
+        String requestPath = url;
+        String paramsString = StringUtils.EMPTY;
 
-        if (StringUtils.equals(requestLine[URL], "/index.html")) {
-            log.info("URL : {}", requestLine[URL]);
-            byte[] bytes = Files.readAllBytes(viewResolver(url));
-            response200Header(dos, bytes.length);
-            responseBody(dos, bytes);
+        if (url.contains("?")) {
+            int index = url.indexOf("?");
+            requestPath = url.substring(0, index);
+            paramsString = url.substring(index + 1);
+        }
 
-        } else {
+        if (StringUtils.equals(requestPath, "/")) {
             byte[] body = "Hello World".getBytes();
             response200Header(dos, body.length);
             responseBody(dos, body);
-        }
+        } else if(StringUtils.equals(requestPath, "/user/create")) {
+            Map<String, String> params= HttpRequestUtils.parseQueryString(paramsString);
+            User user = User.builder()
+                    .userId(params.get("userId"))
+                    .password(params.get("password"))
+                    .name(params.get("name"))
+                    .email(params.get("email")).build();
+            DataBase.addUser(user);
 
+            redirectIndexView(dos);
+        } else {
+            byte[] bytes = Files.readAllBytes(viewResolver(url));
+            response200Header(dos, bytes.length);
+            responseBody(dos, bytes);
+        }
     }
 
     private Path viewResolver(String url) {
@@ -70,6 +89,12 @@ public class RequestHandler extends Thread {
             return new File("./webapp/index.html").toPath();
         }
         return new File("./webapp" + url).toPath();
+    }
+
+    private void redirectIndexView(DataOutputStream dos) throws IOException {
+        byte[] bytes = Files.readAllBytes(viewResolver("/"));
+        response200Header(dos, bytes.length);
+        responseBody(dos, bytes);
     }
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
