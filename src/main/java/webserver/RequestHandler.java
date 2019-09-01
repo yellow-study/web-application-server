@@ -11,8 +11,10 @@ import webserver.Response.ResponseHandler;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
@@ -41,7 +43,7 @@ public class RequestHandler extends Thread {
 
         try (InputStream in = connection.getInputStream();
              OutputStream out = connection.getOutputStream();
-             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(in))) {
+             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 
             String line = bufferedReader.readLine();
             String[] requestLine = line.split(StringUtils.SPACE);
@@ -56,7 +58,7 @@ public class RequestHandler extends Thread {
                     cookies = HttpRequestUtils.parseCookies(cookieValue);
                     logined = isLogin(cookies);
                 } else if (line.contains("Content-Length")) {
-                   contentLength = Integer.parseInt(HttpRequestUtils.parseHeader(line).getValue());
+                    contentLength = Integer.parseInt(HttpRequestUtils.parseHeader(line).getValue());
                 }
             }
 
@@ -94,6 +96,34 @@ public class RequestHandler extends Thread {
             Map<String, String> params = HttpRequestUtils.parseQueryString(paramsString);
             userService.addUser(params);
             ResponseHandler.response302Header(dos, "/index.html", logined);
+        } else if (StringUtils.equals(requestPath, "/user/list")) {
+            if (!logined) {
+                ResponseHandler.response302Header(dos, "/user/login.html", false);
+                return;
+            }
+
+            Collection<User> users = userService.findAll();
+
+            StringBuilder userTable = new StringBuilder("<table border='1'>");
+            userTable.append("<thead>" +
+                                    "<tr>" +
+                                        "<th>" + "Id" + "</th>" +
+                                        "<th>" + "Name" + "</th>" +
+                                        "<th>" + "Email" + "</th>" +
+                                    "</tr>" +
+                            "</thead></tbody>");
+            for (User user : users) {
+                userTable.append("<tr>");
+                userTable.append("<td>" + user.getUserId() + "</td>");
+                userTable.append("<td>" + user.getName() + "</td>");
+                userTable.append("<td>" + user.getPassword() + "</td>");
+                userTable.append("</tr>");
+            }
+            userTable.append("</tbody></table>");
+
+            byte[] bytes = userTable.toString().getBytes();
+            ResponseHandler.response200Header(dos, bytes.length);
+            ResponseHandler.responseBody(dos, bytes);
         } else {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
             ResponseHandler.response200Header(dos, bytes.length);
