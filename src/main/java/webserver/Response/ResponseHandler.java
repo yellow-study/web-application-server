@@ -12,23 +12,27 @@ import java.io.IOException;
 public class ResponseHandler {
     private static final Logger log = LoggerFactory.getLogger(ResponseHandler.class);
 
-    public static void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+    public static void response200Header(DataOutputStream dos, byte[] body) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("Content-Length: " + body.length + "\r\n");
             dos.writeBytes("\r\n");
+
+            responseBody(dos, body);
         } catch (IOException e) {
             log.error(e.getMessage());
         }
     }
 
-    public static void response200HeaderForCss(DataOutputStream dos, int lengthOfBodyContent) {
+    public static void response200HeaderForCss(DataOutputStream dos, byte[] body) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("Content-Length: " + body.length + "\r\n");
             dos.writeBytes("\r\n");
+
+            responseBody(dos, body);
         } catch (IOException e) {
             log.error(e.getMessage());
         }
@@ -45,7 +49,7 @@ public class ResponseHandler {
         }
     }
 
-    public static void responseBody(DataOutputStream dos, byte[] body) {
+    private static void responseBody(DataOutputStream dos, byte[] body) {
         try {
             dos.write(body, 0, body.length);
             dos.flush();

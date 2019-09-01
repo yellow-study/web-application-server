@@ -5,6 +5,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import user.service.UserService;
+import user.view.UserView;
 import util.HttpRequestUtils;
 import util.IOUtils;
 import webserver.Response.ResponseHandler;
@@ -23,6 +24,7 @@ public class RequestHandler extends Thread {
 
     private Socket connection;
     private UserService userService;
+    private UserView userView;
 
     private static final int METHOD = 0;
     private static final int URL = 1;
@@ -35,6 +37,7 @@ public class RequestHandler extends Thread {
     public RequestHandler(Socket connectionSocket) {
         this.connection = connectionSocket;
         this.userService = new UserService();
+        this.userView = new UserView();
     }
 
     public void run() {
@@ -79,68 +82,52 @@ public class RequestHandler extends Thread {
 
     private void getMapping(DataOutputStream dos, String[] requestLine, boolean logined) throws IOException {
         String url = requestLine[URL];
-        String requestPath = url;
         String paramsString = StringUtils.EMPTY;
 
-        if (url.contains("?")) {
-            int index = url.indexOf("?");
-            requestPath = url.substring(0, index);
+        if (requestLine[URL].contains("?")) {
+            int index = requestLine[URL].indexOf("?");
+            url = requestLine[URL].substring(0, index);
             paramsString = url.substring(index + 1);
         }
 
-        if (StringUtils.equals(requestPath, "/")) {
+        if (StringUtils.equals(url, "/")) {
             byte[] body = "Hello World".getBytes();
-            ResponseHandler.response200Header(dos, body.length);
-            ResponseHandler.responseBody(dos, body);
-        } else if (StringUtils.equals(requestPath, "/user/create")) {
+            ResponseHandler.response200Header(dos, body);
+        } else if (StringUtils.equals(url, "/user/create")) {
             Map<String, String> params = HttpRequestUtils.parseQueryString(paramsString);
             userService.addUser(params);
             ResponseHandler.response302Header(dos, "/index.html", logined);
-        } else if (StringUtils.equals(requestPath, "/user/list")) {
+        } else if (StringUtils.equals(url, "/user/list")) {
             if (!logined) {
                 ResponseHandler.response302Header(dos, "/user/login.html", false);
                 return;
             }
 
             Collection<User> users = userService.findAll();
-
-            StringBuilder userTable = new StringBuilder("<table border='1'>");
-            userTable.append("<thead>" +
-                                    "<tr>" +
-                                        "<th>" + "Id" + "</th>" +
-                                        "<th>" + "Name" + "</th>" +
-                                        "<th>" + "Email" + "</th>" +
-                                    "</tr>" +
-                            "</thead></tbody>");
-            for (User user : users) {
-                userTable.append("<tr>");
-                userTable.append("<td>" + user.getUserId() + "</td>");
-                userTable.append("<td>" + user.getName() + "</td>");
-                userTable.append("<td>" + user.getPassword() + "</td>");
-                userTable.append("</tr>");
-            }
-            userTable.append("</tbody></table>");
-
-            byte[] bytes = userTable.toString().getBytes();
-            ResponseHandler.response200Header(dos, bytes.length);
-            ResponseHandler.responseBody(dos, bytes);
-        } else if (requestPath.endsWith(".css")) {
+            String view = userView.getUserListView(users);
+            byte[] bytes = view.getBytes();
+            ResponseHandler.response200Header(dos, bytes);
+        } else if (url.endsWith(".css")) {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
-            ResponseHandler.response200HeaderForCss(dos, bytes.length);
-            ResponseHandler.responseBody(dos, bytes);
+            ResponseHandler.response200HeaderForCss(dos, bytes);
         } else {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
-            ResponseHandler.response200Header(dos, bytes.length);
-            ResponseHandler.responseBody(dos, bytes);
+            ResponseHandler.response200Header(dos, bytes);
         }
     }
 
     private void postMapping(DataOutputStream dos, String[] requestLine, Map<String, String> params, boolean logined) throws IOException {
-        if (StringUtils.equals(requestLine[URL], "/user/create")) {
+        String url = requestLine[URL];
+
+        if (url.contains("?")) {
+            int index = url.indexOf("?");
+            url = url.substring(0, index);
+        }
+        if (StringUtils.equals(url, "/user/create")) {
             userService.addUser(params);
             ResponseHandler.response302Header(dos, "/index.html", logined);
-        } else if (StringUtils.equals(requestLine[URL], "/user/login")) {
-            User user = userService.findUserById(params.get("userId"));
+        } else if (StringUtils.equals(url, "/user/login")) {
+            User user = userService.findUserById(params);
 
             if (user == null) {
                 ResponseHandler.response302Header(dos, "/user/login_failed.html", false);

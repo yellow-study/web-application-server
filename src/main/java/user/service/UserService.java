@@ -19,7 +19,8 @@ public class UserService {
         DataBase.addUser(user);
     }
 
-    public User findUserById(String userId) {
+    public User findUserById(Map<String, String> params) {
+        String userId = params.get("userId");
         if(userId == null) {
             return null;
         }
@@ -29,4 +30,5 @@ public class UserService {
     public Collection<User> findAll() {
         return DataBase.findAll();
     }
+
 }
