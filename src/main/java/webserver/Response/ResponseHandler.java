@@ -23,6 +23,17 @@ public class ResponseHandler {
         }
     }
 
+    public static void response200HeaderForCss(DataOutputStream dos, int lengthOfBodyContent) {
+        try {
+            dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
+            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
     public static void response302Header(DataOutputStream dos, String url, boolean logined) {
         try {
             dos.writeBytes("HTTP/1.1 302 Redirect \r\n");

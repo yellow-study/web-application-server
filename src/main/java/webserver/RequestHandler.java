@@ -124,6 +124,10 @@ public class RequestHandler extends Thread {
             byte[] bytes = userTable.toString().getBytes();
             ResponseHandler.response200Header(dos, bytes.length);
             ResponseHandler.responseBody(dos, bytes);
+        } else if (requestPath.endsWith(".css")) {
+            byte[] bytes = Files.readAllBytes(viewResolver(url));
+            ResponseHandler.response200HeaderForCss(dos, bytes.length);
+            ResponseHandler.responseBody(dos, bytes);
         } else {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
             ResponseHandler.response200Header(dos, bytes.length);
