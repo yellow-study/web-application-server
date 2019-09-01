@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import user.service.UserService;
 import util.HttpRequestUtils;
 import util.IOUtils;
+import webserver.Response.ResponseHandler;
 
 import java.io.*;
 import java.net.Socket;
@@ -83,17 +84,17 @@ public class RequestHandler extends Thread {
 
         if (StringUtils.equals(requestPath, "/")) {
             byte[] body = "Hello World".getBytes();
-            response200Header(dos, body.length);
-            responseBody(dos, body);
+            ResponseHandler.response200Header(dos, body.length);
+            ResponseHandler.responseBody(dos, body);
         } else if (StringUtils.equals(requestPath, "/user/create")) {
             Map<String, String> params = HttpRequestUtils.parseQueryString(paramsString);
             userService.addUser(params);
             log.info("user : {}", userService.findAll());
-            redirectIndexView(dos);
+            ResponseHandler.response302Header(dos, "/index.html");
         } else {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
-            response200Header(dos, bytes.length);
-            responseBody(dos, bytes);
+            ResponseHandler.response200Header(dos, bytes.length);
+            ResponseHandler.responseBody(dos, bytes);
         }
     }
 
@@ -102,7 +103,7 @@ public class RequestHandler extends Thread {
             Map<String, String> params = HttpRequestUtils.parseQueryString(body);
             userService.addUser(params);
             log.info("user : {}", userService.findAll());
-            redirectIndexView(dos);
+            ResponseHandler.response302Header(dos, "/index.html");
         }
     }
 
@@ -111,31 +112,5 @@ public class RequestHandler extends Thread {
             return new File("./webapp/index.html").toPath();
         }
         return new File("./webapp" + url).toPath();
-    }
-
-    private void redirectIndexView(DataOutputStream dos) throws IOException {
-        byte[] bytes = Files.readAllBytes(viewResolver("/"));
-        response200Header(dos, bytes.length);
-        responseBody(dos, bytes);
-    }
-
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-            dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-
-    private void responseBody(DataOutputStream dos, byte[] body) {
-        try {
-            dos.write(body, 0, body.length);
-            dos.flush();
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
     }
 }
