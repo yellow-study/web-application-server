@@ -51,7 +51,6 @@ public class RequestHandler extends Thread {
             Map<String, String> cookies;
             while (StringUtils.isNotBlank(line)) {
                 line = bufferedReader.readLine();
-                System.out.println(line);
                 if (line.contains("Cookie")) {
                     String cookieValue = line.split(":")[1].trim();
                     cookies = HttpRequestUtils.parseCookies(cookieValue);
@@ -107,15 +106,12 @@ public class RequestHandler extends Thread {
             userService.addUser(params);
             ResponseHandler.response302Header(dos, "/index.html", logined);
         } else if (StringUtils.equals(requestLine[URL], "/user/login")) {
-            System.out.println("@@@@@@@@@@@@@@@@@@@@@@@@");
             User user = userService.findUserById(params.get("userId"));
-            System.out.println(user);
 
             if (user == null) {
                 ResponseHandler.response302Header(dos, "/user/login_failed.html", false);
             }
             ResponseHandler.response302Header(dos, "/index.html", true);
-            System.out.println("@@@@@@@@@@@@@@@@@@@@@@@@");
         }
     }
 
