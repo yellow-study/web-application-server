@@ -22,7 +22,6 @@ public class RequestHandler extends Thread {
 
     private static final int METHOD = 0;
     private static final int URL = 1;
-    private static final int HTTP_VERSION = 2;
 
     private static final String GET = "GET";
     private static final String POST = "POST";
@@ -89,7 +88,6 @@ public class RequestHandler extends Thread {
         } else if (StringUtils.equals(requestPath, "/user/create")) {
             Map<String, String> params = HttpRequestUtils.parseQueryString(paramsString);
             userService.addUser(params);
-            log.info("user : {}", userService.findAll());
             ResponseHandler.response302Header(dos, "/index.html");
         } else {
             byte[] bytes = Files.readAllBytes(viewResolver(url));
@@ -102,7 +100,6 @@ public class RequestHandler extends Thread {
         if (StringUtils.equals(requestLine[URL], "/user/create")) {
             Map<String, String> params = HttpRequestUtils.parseQueryString(body);
             userService.addUser(params);
-            log.info("user : {}", userService.findAll());
             ResponseHandler.response302Header(dos, "/index.html");
         }
     }

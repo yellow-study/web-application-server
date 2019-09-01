@@ -1,11 +1,10 @@
 package webserver;
 
-import java.net.ServerSocket;
-import java.net.Socket;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import user.service.UserService;
+
+import java.net.ServerSocket;
+import java.net.Socket;
 
 public class WebServer {
     private static final Logger log = LoggerFactory.getLogger(WebServer.class);
