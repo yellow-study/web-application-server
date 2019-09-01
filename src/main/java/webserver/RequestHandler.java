@@ -1,6 +1,5 @@
 package webserver;
 
-import db.DataBase;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +11,6 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.DatabaseMetaData;
 import java.util.Map;
 
 public class RequestHandler extends Thread {
@@ -24,14 +22,13 @@ public class RequestHandler extends Thread {
     private static final int METHOD = 0;
     private static final int URL = 1;
     private static final int HTTP_VERSION = 2;
-    private static final int PARMAS = 3;
 
     private static final String GET = "GET";
     private static final String POST = "POST";
 
-    public RequestHandler(Socket connectionSocket, UserService userService) {
+    public RequestHandler(Socket connectionSocket) {
         this.connection = connectionSocket;
-        this.userService = userService;
+        this.userService = new UserService();
     }
 
     public void run() {
