@@ -15,13 +15,14 @@
 * 각 요구사항을 구현하는 것이 중요한 것이 아니라 구현 과정을 통해 학습한 내용을 인식하는 것이 배움에 중요하다. 
 
 ### 요구사항 1 - http://localhost:8080/index.html로 접속시 응답
-* 
+* 클라이어트(브라우져) 에서 HTTP를 통해 요청을 inputstream 데이터를 읽어와 파싱해서 요청에 대한 처리를 해야 한다.
+* html 파일을 요청 했을때 서버 디렉토리에서 해당 html 파일을 찾아 읽어와서 outputstream 으로 write 하여 렌더링 한다.
 
 ### 요구사항 2 - get 방식으로 회원가입
-* 
+* N/A
 
 ### 요구사항 3 - post 방식으로 회원가입
-* 
+* HTTP header가 끝난후 한줄 띄고 부터 HTTP body 값이다 (이떄 header에 포함된 Content-Length를 통해 body의 끝을 알 수 있다.)
 
 ### 요구사항 4 - redirect 방식으로 이동
 * 
