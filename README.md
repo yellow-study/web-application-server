@@ -25,7 +25,8 @@
 * HTTP header가 끝난후 한줄 띄고 부터 HTTP body 값이다 (이떄 header에 포함된 Content-Length를 통해 body의 끝을 알 수 있다.)
 
 ### 요구사항 4 - redirect 방식으로 이동
-* 
+* HTTP status code - 200 정상응답 
+* HTTP status code - 302 는 정상응답 하여 redirect 해준다 이떄 Response header에 redirect할 url 주소를 location에 넣어 주면 브라우져 에서 새로운 URL로 요청을 한다.
 
 ### 요구사항 5 - cookie
 * 

@@ -41,6 +41,7 @@ public class RequestHandler extends Thread {
 		try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
 			BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
+			//TODO service method - http method 를 판별하여 doXXXMethod를 호출한다. 
 			String firstLine = reader.readLine();
 
 			if (firstLine == null) {
@@ -65,6 +66,8 @@ public class RequestHandler extends Thread {
 			String method = tokens[0];
 			String url = tokens[1];
 
+			int statusCode = 0;
+
 			if (GET.equals(method)) {
 				int questionMarkIndex = url.indexOf("?");
 
@@ -77,6 +80,8 @@ public class RequestHandler extends Thread {
 						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 							params.get("email"));
 						DataBase.addUser(user);
+						statusCode=302;
+						url = "/index.html";
 					}
 				}
 			}
@@ -90,22 +95,29 @@ public class RequestHandler extends Thread {
 						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 							params.get("email"));
 						DataBase.addUser(user);
+						statusCode=302;
+						url = "/index.html";
 					}
 				}
 			}
-
-			DataOutputStream dos = new DataOutputStream(out);
-			byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
-			response200Header(dos, body.length);
-			responseBody(dos, body);
-
-			// TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
+			responseClient(out, statusCode, url);
 
 		} catch (IOException e) {
 			log.error(e.getMessage());
 		}
 	}
 
+	private void responseClient(OutputStream out, int statusCode, String DestinationUrl) throws IOException {
+		DataOutputStream dos = new DataOutputStream(out);
+
+		if(statusCode == 302) {
+			response302Header(dos, DestinationUrl);
+		}else {
+			byte[] body = Files.readAllBytes(new File("./webapp" + DestinationUrl).toPath());
+			response200Header(dos, body.length);
+			responseBody(dos, body);
+		}
+	}
 	private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
 		try {
 			dos.writeBytes("HTTP/1.1 200 OK \r\n");
@@ -117,6 +129,16 @@ public class RequestHandler extends Thread {
 		}
 	}
 
+	private void response302Header(DataOutputStream dos, String location) {
+		try {
+			dos.writeBytes("HTTP/1.1 302 Found \r\n");
+			dos.writeBytes("Location: "+ location +"\r\n");
+			dos.writeBytes("\r\n");
+		} catch (IOException e) {
+			log.error(e.getMessage());
+		}
+	}
+	
 	private void responseBody(DataOutputStream dos, byte[] body) {
 		try {
 			dos.write(body, 0, body.length);
