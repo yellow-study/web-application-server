@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Maps;
 import model.HttpRequestHeader;
+import model.HttpResponse;
+import model.HttpStatusCode;
 import model.User;
 import util.HttpRequestUtils;
 import util.IOUtils;
@@ -37,10 +39,16 @@ public class RequestHandler extends Thread {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             HttpRequestHeader header = readHeader(br);
 
-            byte[] body = makeBody(header, br);
+            HttpResponse httpResponse = makeResponse(header, br);
+            HttpStatusCode httpStatusCode = httpResponse.getHttpStatusCode();
+            byte[] body = httpResponse.getBody();
 
             DataOutputStream dos = new DataOutputStream(out);
-            response200Header(dos, body.length);
+            if (httpStatusCode == HttpStatusCode.REDIRECT) {
+                response302Header(dos, "/index.html");
+            } else if (httpStatusCode == HttpStatusCode.OK) {
+                response200Header(dos, body.length);
+            }
             responseBody(dos, body);
         } catch (IOException e) {
             log.error(e.getMessage());
@@ -62,7 +70,7 @@ public class RequestHandler extends Thread {
         return header;
     }
 
-    private byte[] makeBody(HttpRequestHeader header, BufferedReader br) throws IOException {
+    private HttpResponse makeResponse(HttpRequestHeader header, BufferedReader br) throws IOException {
         Map<String, String> queryStrings = Maps.newHashMap();
         if ("GET".equals(header.getMethod()) && !header.getQueryStrings().isEmpty()) {
             queryStrings = header.getQueryStrings();
@@ -77,10 +85,10 @@ public class RequestHandler extends Thread {
                     queryStrings.get("name"),
                     queryStrings.get("password"),
                     queryStrings.get("name"));
-            return (queryStrings.get("userId") + "님 환영합니다").getBytes();
+            return new HttpResponse(HttpStatusCode.REDIRECT, new byte[]{});
         }
 
-        return Files.readAllBytes(new File("./webapp" + header.getUrl()).toPath());
+        return new HttpResponse(HttpStatusCode.OK, Files.readAllBytes(new File("./webapp" + header.getUrl()).toPath()));
     }
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
@@ -88,6 +96,16 @@ public class RequestHandler extends Thread {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void response302Header(DataOutputStream dos, String url) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Found \r\n");
+            dos.writeBytes("Location: " + url + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
