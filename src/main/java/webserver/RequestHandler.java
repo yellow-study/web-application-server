@@ -14,8 +14,11 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.Maps;
+import model.HttpRequestHeader;
 import model.User;
 import util.HttpRequestUtils;
+import util.IOUtils;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -32,19 +35,9 @@ public class RequestHandler extends Thread {
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
+            HttpRequestHeader header = readHeader(br);
 
-            String line = br.readLine();
-            String[] tokens = line.split(" ");
-
-            String url = tokens[1];
-
-            while(!"".equals(line)) {
-                if (line == null) break;
-                log.debug(line);
-                line = br.readLine();
-            }
-
-            byte[] body = getBody(url);
+            byte[] body = makeBody(header, br);
 
             DataOutputStream dos = new DataOutputStream(out);
             response200Header(dos, body.length);
@@ -54,17 +47,40 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private byte[] getBody(String url) throws IOException {
-        if (url.startsWith("/user/create")) {
-            Map<String, String> queryMap = HttpRequestUtils.parseQueryString(url.split("\\?")[1]);
-            new User(queryMap.get("userId"),
-                    queryMap.get("name"),
-                    queryMap.get("password"),
-                    queryMap.get("name"));
-            return (queryMap.get("userId") + "님 환영합니다").getBytes();
+    private HttpRequestHeader readHeader(BufferedReader br) throws IOException {
+        HttpRequestHeader header = new HttpRequestHeader();
+
+        String line = br.readLine();
+        header.setBasicInfo(line);
+        log.debug(line);
+
+        while(!"".equals(line = br.readLine())) {
+            if (line == null) break;
+            header.setHeaderOptions(line);
+            log.debug(line);
+        }
+        return header;
+    }
+
+    private byte[] makeBody(HttpRequestHeader header, BufferedReader br) throws IOException {
+        Map<String, String> queryStrings = Maps.newHashMap();
+        if ("GET".equals(header.getMethod()) && !header.getQueryStrings().isEmpty()) {
+            queryStrings = header.getQueryStrings();
+        }
+        if ("POST".equals(header.getMethod())) {
+            int contentLength = Integer.parseInt(header.getHeaderOption("Content-Length"));
+            queryStrings = HttpRequestUtils.parseQueryString(IOUtils.readData(br, contentLength));
         }
 
-        return Files.readAllBytes(new File("./webapp" + url).toPath());
+        if ("/user/create".equals(header.getUrl())) {
+            new User(queryStrings.get("userId"),
+                    queryStrings.get("name"),
+                    queryStrings.get("password"),
+                    queryStrings.get("name"));
+            return (queryStrings.get("userId") + "님 환영합니다").getBytes();
+        }
+
+        return Files.readAllBytes(new File("./webapp" + header.getUrl()).toPath());
     }
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
