@@ -58,6 +58,8 @@ public class RequestHandler extends Thread {
             String method = tokens[0];
             String url = tokens[1];
 
+            DataOutputStream dos = new DataOutputStream(out);
+
             if (GET.equals(method)) {
                 int questionMarkIndex = url.indexOf("?");
 
@@ -69,6 +71,7 @@ public class RequestHandler extends Thread {
                     if ("/user/create".equals(uri)) {
                         User user = new User(params.get("userId"), params.get("password"), params.get("name"), params.get("email"));
                         DataBase.addUser(user);
+                        log.debug("uri "+uri);
                     }
                 }
             }
@@ -81,11 +84,13 @@ public class RequestHandler extends Thread {
                     if ("/user/create".equals(url)) {
                         User user = new User(params.get("userId"), params.get("password"), params.get("name"), params.get("email"));
                         DataBase.addUser(user);
+                        url = "/index.html";
+
+                        response302Header(dos,"../index.html");
                     }
                 }
             }
 
-            DataOutputStream dos = new DataOutputStream(out);
             byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
             response200Header(dos, body.length);
             responseBody(dos, body);
@@ -102,6 +107,16 @@ public class RequestHandler extends Thread {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void response302Header(DataOutputStream dos, String url) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
+            dos.writeBytes("Location: " + url + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
