@@ -8,9 +8,13 @@ import util.HttpRequestUtils;
 import util.IOUtils;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public class RequestHandler extends Thread {
@@ -59,7 +63,8 @@ public class RequestHandler extends Thread {
             String url = tokens[1];
 
             DataOutputStream dos = new DataOutputStream(out);
-
+            byte[] newBody = null;
+            boolean logined = false;
             if (GET.equals(method)) {
                 int questionMarkIndex = url.indexOf("?");
 
@@ -73,6 +78,24 @@ public class RequestHandler extends Thread {
                         DataBase.addUser(user);
                         log.debug("uri "+uri);
                     }
+                } else {
+
+                    if ("/user/list".equals(url)) {
+                        Map loginedCookie = util.HttpRequestUtils.parseCookies("logined");
+                        boolean isLogined = Boolean.parseBoolean((String)loginedCookie.get("logined"));
+
+                        if(isLogined) {
+                            String html = getUserListPage();
+
+
+                        } else {
+                            response302Header(dos,"../index.html",logined);
+                        }
+                    }
+
+                    newBody = Files.readAllBytes(new File("./webapp" + url).toPath());
+                    response200Header(dos, newBody.length);
+                    responseBody(dos, newBody);
                 }
             }
 
@@ -86,20 +109,46 @@ public class RequestHandler extends Thread {
                         DataBase.addUser(user);
                         url = "/index.html";
 
-                        response302Header(dos,"../index.html");
+                        response302Header(dos,"../index.html", logined);
+                    }
+
+                    if ("/user/login".equals(url)) {
+                        User user = DataBase.findUserById(params.get("userId"));
+                        if(user == null){
+                            url = "login_failed.html";
+                        } else {
+                            if (user.getPassword().equals(params.get("password"))) {
+                                url = "../index.html";
+                                logined = true;
+                            } else {
+                                url = "login_failed.html";
+                            }
+                        }
+                        response302Header(dos,url,logined);
                     }
                 }
             }
 
-            byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
-            response200Header(dos, body.length);
-            responseBody(dos, body);
+
 
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 
         } catch (IOException e) {
             log.error(e.getMessage());
         }
+    }
+
+    private String getUserListPage(){
+        List<User> userList = new ArrayList<>(DataBase.findAll());
+
+        StringBuilder sb = new StringBuilder(
+                "<html><head><title>사용자 목록</title></head><body><h1>사용자목록</h1>\n");
+
+        for (int i = 0; i < userList.size(); i++) {
+            sb.append("<div>"+i + ". "+ userList.get(i) +"</div>");
+        }
+
+        return sb.append("</body></html>").toString();
     }
 
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
@@ -113,9 +162,10 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private void response302Header(DataOutputStream dos, String url) {
+    private void response302Header(DataOutputStream dos, String url, boolean logined) {
         try {
-            dos.writeBytes("HTTP/1.1 302 FOUND \r\n");
+            dos.writeBytes("HTTP/1.1 302 Found \r\n");
+            dos.writeBytes("Set-Cookie: logined=" + logined + "; Path=/\r\n");
             dos.writeBytes("Location: " + url + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
