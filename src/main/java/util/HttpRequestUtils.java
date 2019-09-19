@@ -1,6 +1,7 @@
 package util;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,9 +28,9 @@ public class HttpRequestUtils {
         return parseValues(cookies, ";");
     }
 
-    private static Map<String, String> parseValues(String values, String separator) {
+    public static Map<String, String> parseValues(String values, String separator) {
         if (Strings.isNullOrEmpty(values)) {
-            return Maps.newHashMap();
+            return Collections.EMPTY_MAP;
         }
 
         String[] tokens = values.split(separator);
