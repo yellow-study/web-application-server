@@ -8,12 +8,11 @@ import util.HttpRequestUtils;
 import util.IOUtils;
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,124 +36,136 @@ public class RequestHandler extends Thread {
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
-            String firstLine = reader.readLine();
+            String requestLine = reader.readLine();
 
-            if (firstLine == null) {
+            if (requestLine == null) {
                 return;
             }
 
-            log.debug(firstLine);
+            log.debug(requestLine);
 
             String headerInfo;
+
             HttpRequestUtils.Pair contentLength = null;
+
+            Map<String, String> cookies = new HashMap<String, String>();
+            cookies.put("logined", "false");
 
             while (!"".equals(headerInfo = reader.readLine())) {
                 if (headerInfo.startsWith("Content-Length")) {
                     contentLength = HttpRequestUtils.parseHeader(headerInfo);
+                } else if (headerInfo.startsWith("Cookie")) {
+                    cookies = HttpRequestUtils.parseCookies(HttpRequestUtils.parseHeader(headerInfo).getValue());
                 }
 
                 log.debug(headerInfo);
             }
 
-
-            String[] tokens = firstLine.split(URL_DELIMITER);
+            String[] tokens = requestLine.split(URL_DELIMITER);
 
             String method = tokens[0];
             String url = tokens[1];
 
             DataOutputStream dos = new DataOutputStream(out);
-            byte[] newBody = null;
-            boolean logined = false;
+
             if (GET.equals(method)) {
-                int questionMarkIndex = url.indexOf("?");
-
-                if (questionMarkIndex != NOT_EXISTS) {
-                    String uri = url.substring(0, questionMarkIndex);
-                    String queryString = url.substring(questionMarkIndex + 1);
-                    Map<String, String> params = HttpRequestUtils.parseQueryString(queryString);
-
-                    if ("/user/create".equals(uri)) {
-                        User user = new User(params.get("userId"), params.get("password"), params.get("name"), params.get("email"));
-                        DataBase.addUser(user);
-                        log.debug("uri "+uri);
-                    }
-                } else {
-
-                    if ("/user/list".equals(url)) {
-                        Map loginedCookie = util.HttpRequestUtils.parseCookies("logined");
-                        boolean isLogined = Boolean.parseBoolean((String)loginedCookie.get("logined"));
-
-                        if(isLogined) {
-                            String html = getUserListPage();
-
-
-                        } else {
-                            response302Header(dos,"../index.html",logined);
-                        }
-                    }
-
-                    newBody = Files.readAllBytes(new File("./webapp" + url).toPath());
-                    response200Header(dos, newBody.length);
-                    responseBody(dos, newBody);
-                }
+                doGet(cookies, url, dos);
+            } else if (POST.equals(method)) {
+                doPost(reader, contentLength, url, dos);
             }
-
-            if (POST.equals(method)) {
-                if (contentLength != null) {
-                    String body = IOUtils.readData(reader, Integer.parseInt(contentLength.getValue()));
-                    Map<String, String> params = HttpRequestUtils.parseQueryString(body);
-
-                    if ("/user/create".equals(url)) {
-                        User user = new User(params.get("userId"), params.get("password"), params.get("name"), params.get("email"));
-                        DataBase.addUser(user);
-                        url = "/index.html";
-
-                        response302Header(dos,"../index.html", logined);
-                    }
-
-                    if ("/user/login".equals(url)) {
-                        User user = DataBase.findUserById(params.get("userId"));
-                        if(user == null){
-                            url = "login_failed.html";
-                        } else {
-                            if (user.getPassword().equals(params.get("password"))) {
-                                url = "../index.html";
-                                logined = true;
-                            } else {
-                                url = "login_failed.html";
-                            }
-                        }
-                        response302Header(dos,url,logined);
-                    }
-                }
-            }
-
-
-
-            // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 
         } catch (IOException e) {
             log.error(e.getMessage());
         }
     }
 
-    private String getUserListPage(){
+    private void doPost(BufferedReader reader, HttpRequestUtils.Pair contentLength, String url, DataOutputStream dos) throws IOException {
+        if (contentLength != null) {
+            String requestBody = IOUtils.readData(reader, Integer.parseInt(contentLength.getValue()));
+            Map<String, String> params = HttpRequestUtils.parseQueryString(requestBody);
+
+            if ("/user/create".equals(url)) {
+                User user = new User(params.get("userId"), params.get("password"), params.get("name"), params.get("email"));
+                DataBase.addUser(user);
+                url = "/index.html";
+
+                response302Header(dos, "../index.html", false);
+            }
+
+            if ("/user/login".equals(url)) {
+                User user = DataBase.findUserById(params.get("userId"));
+                boolean logined = false;
+
+                if (user == null) {
+                    url = "login_failed.html";
+                } else {
+                    if (user.getPassword().equals(params.get("password"))) {
+                        url = "../index.html";
+                        logined = true;
+                    } else {
+                        url = "login_failed.html";
+                    }
+                }
+
+                response302Header(dos, url, logined);
+            }
+        }
+    }
+
+    private void doGet(Map<String, String> cookies, String url, DataOutputStream dos) throws IOException {
+        byte[] responseBody;
+        int questionMarkIndex = url.indexOf("?");
+
+        if (questionMarkIndex != NOT_EXISTS) {
+            String uri = url.substring(0, questionMarkIndex);
+            String queryString = url.substring(questionMarkIndex + 1);
+            Map<String, String> params = HttpRequestUtils.parseQueryString(queryString);
+
+            if ("/user/create".equals(uri)) {
+                User user = new User(params.get("userId"), params.get("password"), params.get("name"), params.get("email"));
+                DataBase.addUser(user);
+                log.debug("uri " + uri);
+            }
+        } else {
+            String contentType = "text/html";
+            responseBody = Files.readAllBytes(new File("./webapp" + url).toPath());
+
+            if ("/user/list".equals(url)) {
+                boolean isLogined = Boolean.parseBoolean(cookies.get("logined"));
+
+                if (isLogined) {
+                    String html = getUserListPage();
+                    responseBody = html.getBytes();
+
+                } else {
+                    response302Header(dos, "login.html", isLogined);
+                }
+            } else if (url.endsWith(".css")) {
+                contentType = "text/css";
+            }
+
+            response200Header(dos, contentType, responseBody.length);
+            responseBody(dos, responseBody);
+        }
+    }
+
+    private String getUserListPage() {
         List<User> userList = new ArrayList<>(DataBase.findAll());
 
         StringBuilder sb = new StringBuilder(
                 "<html><head><title>사용자 목록</title></head><body><h1>사용자목록</h1>\n");
 
-        for (int i = 0; i < userList.size(); i++) {
-            sb.append("<div>"+i + ". "+ userList.get(i) +"</div>");
+        for (int index = 0; index < userList.size(); index++) {
+            sb.append("<div>" + index + ". " + userList.get(index) + "</div>");
         }
 
         return sb.append("</body></html>").toString();
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+    private void response200Header(DataOutputStream dos, String contentType, int lengthOfBodyContent) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
