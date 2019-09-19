@@ -10,6 +10,8 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -26,6 +28,8 @@ public class RequestHandler extends Thread {
 	private static final String URL_DELIMITER = " ";
 	private static final int NOT_EXISTS = -1;
 	private static final String JOIN_URI = "/user/create";
+	private static final String LOGIN_URI = "/user/login";
+
 	private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
 
 	private Socket connection;
@@ -42,31 +46,42 @@ public class RequestHandler extends Thread {
 			BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
 			//TODO service method - http method 를 판별하여 doXXXMethod를 호출한다. 
-			String firstLine = reader.readLine();
+			String requestLine = reader.readLine();
 
-			if (firstLine == null) {
+			if (requestLine == null) {
 				return;
 			}
 
-			log.debug(firstLine);
+			log.debug(requestLine);
 
-			String headerInfo;
+			String requestHeader;
 			HttpRequestUtils.Pair contentLength = null;
+			HttpRequestUtils.Pair contentTypePair = null;
+			String contentType = null;
 
-			while (!"".equals(headerInfo = reader.readLine())) {
-				if (headerInfo.startsWith("Content-Length")) {
-					contentLength = HttpRequestUtils.parseHeader(headerInfo);
+			while (!"".equals(requestHeader = reader.readLine())) {
+				if (requestHeader.startsWith("Content-Length")) {
+					contentLength = HttpRequestUtils.parseHeader(requestHeader);
+
+				} else if (requestHeader.startsWith("Accept:")) {
+					contentTypePair = HttpRequestUtils.parseHeader(requestHeader);
+					int contentTypeIndex = contentTypePair.getValue().indexOf(",");
+
+					if (contentTypeIndex <= NOT_EXISTS) {
+						contentType = contentTypePair.getValue();
+					} else {
+						contentType = contentTypePair.getValue().substring(0, contentTypeIndex);
+					}
 				}
-
-				log.debug(headerInfo);
+				log.debug(requestHeader);
 			}
 
-			String[] tokens = firstLine.split(URL_DELIMITER);
+			String[] tokens = requestLine.split(URL_DELIMITER);
 
 			String method = tokens[0];
 			String url = tokens[1];
 
-			int statusCode = 0;
+			DataOutputStream dos = new DataOutputStream(out);
 
 			if (GET.equals(method)) {
 				int questionMarkIndex = url.indexOf("?");
@@ -80,8 +95,19 @@ public class RequestHandler extends Thread {
 						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 							params.get("email"));
 						DataBase.addUser(user);
-						statusCode=302;
+
 						url = "/index.html";
+						response302Header(dos, url);
+					}
+				} else {
+
+					if("USER_LIST_URL".equals(url)) {
+						Collection<User> users = DataBase.findAll();
+						for(User user : users) {
+							
+						}
+					} else {
+						make200Response(dos, contentType, url);
 					}
 				}
 			}
@@ -95,50 +121,78 @@ public class RequestHandler extends Thread {
 						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 							params.get("email"));
 						DataBase.addUser(user);
-						statusCode=302;
+
 						url = "/index.html";
+						response302Header(dos, url);
+
+					} else if (LOGIN_URI.equals(url)) {
+
+						User user = DataBase.findUserById(params.get("userId"));
+
+						if (user == null) {
+							url = "/user/login_failed.html";
+							response302LoginHeader(dos, false, url);
+						} else {
+							if (user.getPassword().equals(params.get("password"))) {
+								url = "/index.html";
+								response302LoginHeader(dos, true, url);
+							} else {
+								url = "/user/login_failed.html";
+								response302LoginHeader(dos, false, url);
+							}
+						}
+					} else {
+						make200Response(dos, contentType, url);
 					}
 				}
 			}
-			responseClient(out, statusCode, url);
 
 		} catch (IOException e) {
 			log.error(e.getMessage());
 		}
 	}
 
-	private void responseClient(OutputStream out, int statusCode, String DestinationUrl) throws IOException {
-		DataOutputStream dos = new DataOutputStream(out);
+	private void make200Response(DataOutputStream dos, String contentType, String url)
+		throws IOException {
 
-		if(statusCode == 302) {
-			response302Header(dos, DestinationUrl);
-		}else {
-			byte[] body = Files.readAllBytes(new File("./webapp" + DestinationUrl).toPath());
-			response200Header(dos, body.length);
-			responseBody(dos, body);
-		}
+		byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
+		response200Header(dos, contentType, body.length);
+		responseBody(dos, body);
+
 	}
-	private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+
+	private void response200Header(DataOutputStream dos, String contentType, int bodyLength) {
 		try {
 			dos.writeBytes("HTTP/1.1 200 OK \r\n");
-			dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-			dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+			dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
+			dos.writeBytes("Content-Length: " + bodyLength + "\r\n");
 			dos.writeBytes("\r\n");
 		} catch (IOException e) {
 			log.error(e.getMessage());
 		}
 	}
 
-	private void response302Header(DataOutputStream dos, String location) {
+	private void response302Header(DataOutputStream dos, String url) {
 		try {
 			dos.writeBytes("HTTP/1.1 302 Found \r\n");
-			dos.writeBytes("Location: "+ location +"\r\n");
+			dos.writeBytes("Location: " + url + "\r\n");
 			dos.writeBytes("\r\n");
 		} catch (IOException e) {
 			log.error(e.getMessage());
 		}
 	}
-	
+
+	private void response302LoginHeader(DataOutputStream dos, boolean status, String url) {
+		try {
+			dos.writeBytes("HTTP/1.1 302 Found \r\n");
+			dos.writeBytes("Set-Cookie: logined=" + status + "; Path=/\r\n");
+			dos.writeBytes("Location: " + url + "\r\n");
+			dos.writeBytes("\r\n");
+		} catch (IOException e) {
+			log.error(e.getMessage());
+		}
+	}
+
 	private void responseBody(DataOutputStream dos, byte[] body) {
 		try {
 			dos.write(body, 0, body.length);
