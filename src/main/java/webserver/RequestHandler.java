@@ -80,8 +80,15 @@ public class RequestHandler extends Thread {
 
     private HttpResponseHeader makeResponseHeader(HttpRequestHeader header, BufferedReader br) throws IOException {
         Map<String, String> requestBody = getRequestBody(header, br);
+        String url = header.getUrl();
 
-        if ("/user/create".equals(header.getUrl())) {
+        if ("./css/style.css".equals(url)) {
+            return HttpResponseHeader.builder()
+                    .httpStatusCode(HttpStatusCode.OK)
+                    .headerOption(HttpHeaderOption.CONTENT_TYPE, "text/css")
+                    .build();
+        }
+        if ("/user/create".equals(url)) {
             DataBase.addUser(new User(requestBody.get("userId"),
                     requestBody.get("name"),
                     requestBody.get("password"),
@@ -93,7 +100,7 @@ public class RequestHandler extends Thread {
                     .headerOption(HttpHeaderOption.LOCATION, "/index.html")
                     .build();
         }
-        if ("/user/login".equals(header.getUrl())) {
+        if ("/user/login".equals(url)) {
             Optional<User> optionalUser = DataBase.findUserById(requestBody.get("userId"));
 
             String location;
@@ -113,7 +120,7 @@ public class RequestHandler extends Thread {
                     .headerOption(HttpHeaderOption.SET_COOKIE, cookie)
                     .build();
         }
-        if ("/user/list".equals(header.getUrl())) {
+        if ("/user/list".equals(url)) {
             if (!isLogined(header)) {
                 return HttpResponseHeader.builder()
                         .httpStatusCode(HttpStatusCode.REDIRECT)
@@ -130,7 +137,7 @@ public class RequestHandler extends Thread {
         byte[] body = new byte[]{};
         String url = header.getUrl();
 
-        if (StringUtils.indexOfIgnoreCase(url, ".html") >= 0) {
+        if (StringUtils.indexOfIgnoreCase(url, ".") >= 0) {
             body = Files.readAllBytes(new File("./webapp" + url).toPath());
         }
         if ("/user/list".equals(url) && isLogined(header)) {
