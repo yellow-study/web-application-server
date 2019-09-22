@@ -10,7 +10,9 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,8 +29,6 @@ public class RequestHandler extends Thread {
 	private static final String POST = "POST";
 	private static final String URL_DELIMITER = " ";
 	private static final int NOT_EXISTS = -1;
-	private static final String JOIN_URI = "/user/create";
-	private static final String LOGIN_URI = "/user/login";
 
 	private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
 
@@ -59,11 +59,14 @@ public class RequestHandler extends Thread {
 			HttpRequestUtils.Pair contentTypePair = null;
 			String contentType = null;
 
+			Map<String, String> cookies = new HashMap<String, String>();
+			cookies.put("logined", "false");
+
 			while (!"".equals(requestHeader = reader.readLine())) {
 				if (requestHeader.startsWith("Content-Length")) {
 					contentLength = HttpRequestUtils.parseHeader(requestHeader);
 
-				} else if (requestHeader.startsWith("Accept:")) {
+				} else if (requestHeader.startsWith("Accept:")) {//content type check
 					contentTypePair = HttpRequestUtils.parseHeader(requestHeader);
 					int contentTypeIndex = contentTypePair.getValue().indexOf(",");
 
@@ -72,6 +75,8 @@ public class RequestHandler extends Thread {
 					} else {
 						contentType = contentTypePair.getValue().substring(0, contentTypeIndex);
 					}
+				} else if (requestHeader.startsWith("Cookie")) {//cookie check
+					cookies = HttpRequestUtils.parseCookies(HttpRequestUtils.parseHeader(requestHeader).getValue());
 				}
 				log.debug(requestHeader);
 			}
@@ -91,7 +96,7 @@ public class RequestHandler extends Thread {
 					String queryString = url.substring(questionMarkIndex + 1);
 					Map<String, String> params = HttpRequestUtils.parseQueryString(queryString);
 
-					if (JOIN_URI.equals(uri)) {
+					if ("/user/create".equals(uri)) {
 						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 							params.get("email"));
 						DataBase.addUser(user);
@@ -101,10 +106,14 @@ public class RequestHandler extends Thread {
 					}
 				} else {
 
-					if("USER_LIST_URL".equals(url)) {
-						Collection<User> users = DataBase.findAll();
-						for(User user : users) {
-							
+					if ("/user/list".equals(url)) {
+						boolean isLogined = Boolean.parseBoolean(cookies.get("logined"));
+
+						if (isLogined) {
+							String html = getUserListPage();
+							makeUserList200Response(dos, contentType, html.getBytes());
+						} else {
+							response302LoginHeader(dos, isLogined, "login.html");
 						}
 					} else {
 						make200Response(dos, contentType, url);
@@ -117,7 +126,7 @@ public class RequestHandler extends Thread {
 					String body = IOUtils.readData(reader, Integer.parseInt(contentLength.getValue()));
 					Map<String, String> params = HttpRequestUtils.parseQueryString(body);
 
-					if (JOIN_URI.equals(url)) {
+					if ("/user/create".equals(url)) {
 						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
 							params.get("email"));
 						DataBase.addUser(user);
@@ -125,31 +134,52 @@ public class RequestHandler extends Thread {
 						url = "/index.html";
 						response302Header(dos, url);
 
-					} else if (LOGIN_URI.equals(url)) {
+					} else if ("/user/login".equals(url)) {
 
 						User user = DataBase.findUserById(params.get("userId"));
+						boolean logined= false;
 
 						if (user == null) {
 							url = "/user/login_failed.html";
-							response302LoginHeader(dos, false, url);
 						} else {
 							if (user.getPassword().equals(params.get("password"))) {
 								url = "/index.html";
-								response302LoginHeader(dos, true, url);
+								logined = true;
 							} else {
 								url = "/user/login_failed.html";
-								response302LoginHeader(dos, false, url);
 							}
 						}
+						
+						response302LoginHeader(dos, logined, url);
 					} else {
 						make200Response(dos, contentType, url);
 					}
 				}
 			}
-
 		} catch (IOException e) {
 			log.error(e.getMessage());
 		}
+	}
+
+	private String getUserListPage() {
+		List<User> userList = new ArrayList<>(DataBase.findAll());
+
+		StringBuilder sb = new StringBuilder(
+			"<html><head><title>사용자 목록</title></head><body><h1>사용자목록</h1>\n");
+
+		for (User user : userList) {
+			sb.append("<div>" + user.toString() + "</div>");
+		}
+
+		return sb.append("</body></html>").toString();
+	}
+
+	private void makeUserList200Response(DataOutputStream dos, String contentType, byte[] body)
+		throws IOException {
+
+		response200Header(dos, contentType, body.length);
+		responseBody(dos, body);
+
 	}
 
 	private void make200Response(DataOutputStream dos, String contentType, String url)
