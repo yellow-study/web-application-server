@@ -10,14 +10,18 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Maps;
+import com.sun.tools.javac.util.StringUtils;
+import db.DataBase;
 import model.HttpRequestHeader;
-import model.HttpResponse;
-import model.HttpStatusCode;
+import model.HttpResponseHeader;
+import type.HttpHeaderOption;
+import type.HttpStatusCode;
 import model.User;
 import util.HttpRequestUtils;
 import util.IOUtils;
@@ -37,18 +41,12 @@ public class RequestHandler extends Thread {
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
-            HttpRequestHeader header = readHeader(br);
+            HttpRequestHeader requestHeader = readHeader(br);
 
-            HttpResponse httpResponse = makeResponse(header, br);
-            HttpStatusCode httpStatusCode = httpResponse.getHttpStatusCode();
-            byte[] body = httpResponse.getBody();
+            byte[] body = makeResponseBody(requestHeader.getUrl());
 
             DataOutputStream dos = new DataOutputStream(out);
-            if (httpStatusCode == HttpStatusCode.REDIRECT) {
-                response302Header(dos, "/index.html");
-            } else if (httpStatusCode == HttpStatusCode.OK) {
-                response200Header(dos, body.length);
-            }
+            responseHeader(dos, makeResponseHeader(requestHeader, br));
             responseBody(dos, body);
         } catch (IOException e) {
             log.error(e.getMessage());
@@ -70,42 +68,76 @@ public class RequestHandler extends Thread {
         return header;
     }
 
-    private HttpResponse makeResponse(HttpRequestHeader header, BufferedReader br) throws IOException {
-        Map<String, String> queryStrings = Maps.newHashMap();
+    private Map<String, String> getRequestBodyByMethod(HttpRequestHeader header, BufferedReader br) throws IOException {
+        Map<String, String> requestBody = Maps.newHashMap();
         if ("GET".equals(header.getMethod()) && !header.getQueryStrings().isEmpty()) {
-            queryStrings = header.getQueryStrings();
+            requestBody = header.getQueryStrings();
         }
         if ("POST".equals(header.getMethod())) {
             int contentLength = Integer.parseInt(header.getHeaderOption("Content-Length"));
-            queryStrings = HttpRequestUtils.parseQueryString(IOUtils.readData(br, contentLength));
+            requestBody = HttpRequestUtils.parseQueryString(IOUtils.readData(br, contentLength));
         }
+        return requestBody;
+    }
+
+    private HttpResponseHeader makeResponseHeader(HttpRequestHeader header, BufferedReader br) throws IOException {
+        Map<String, String> requestBody = getRequestBodyByMethod(header, br);
 
         if ("/user/create".equals(header.getUrl())) {
-            new User(queryStrings.get("userId"),
-                    queryStrings.get("name"),
-                    queryStrings.get("password"),
-                    queryStrings.get("name"));
-            return new HttpResponse(HttpStatusCode.REDIRECT, new byte[]{});
-        }
+            DataBase.addUser(new User(requestBody.get("userId"),
+                    requestBody.get("name"),
+                    requestBody.get("password"),
+                    requestBody.get("name"))
+            );
 
-        return new HttpResponse(HttpStatusCode.OK, Files.readAllBytes(new File("./webapp" + header.getUrl()).toPath()));
+            return HttpResponseHeader.builder()
+                    .httpStatusCode(HttpStatusCode.REDIRECT)
+                    .headerOption(HttpHeaderOption.LOCATION, "/index.html")
+                    .build();
+        }
+        if ("/user/login".equals(header.getUrl())) {
+            Optional<User> optionalUser = DataBase.findUserById(requestBody.get("userId"));
+
+            String location;
+            String cookie;
+
+            if (optionalUser.filter(user -> user.getPassword().equals(requestBody.get("password"))).isPresent()) {
+                location = "/index.html";
+                cookie = "logined=true";
+            } else {
+                location = "/user/login_failed.html";
+                cookie = "logined=false";
+            }
+
+            return HttpResponseHeader.builder()
+                    .httpStatusCode(HttpStatusCode.REDIRECT)
+                    .headerOption(HttpHeaderOption.LOCATION, location)
+                    .headerOption(HttpHeaderOption.SET_COOKIE, cookie)
+                    .build();
+        }
+        return HttpResponseHeader.builder()
+                .httpStatusCode(HttpStatusCode.OK)
+                .build();
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+    private byte[] makeResponseBody(String url) throws IOException {
+        byte[] body = new byte[]{};
+
+        if (StringUtils.indexOfIgnoreCase(url, ".html") >= 0) {
+            body = Files.readAllBytes(new File("./webapp" + url).toPath());
+        }
+
+        return body;
+    }
+
+    private void responseHeader(DataOutputStream dos, HttpResponseHeader header) {
         try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            dos.writeBytes(header.getHttpVersion() + " " + header.getHttpStatusCode().codeWithInformation() + " ");
             dos.writeBytes("\r\n");
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-
-    private void response302Header(DataOutputStream dos, String url) {
-        try {
-            dos.writeBytes("HTTP/1.1 302 Found \r\n");
-            dos.writeBytes("Location: " + url + "\r\n");
+            for (Map.Entry<String, String> entries : header.getHeaderOptions().entrySet()) {
+                dos.writeBytes(entries.getKey() + ": " + entries.getValue() );
+                dos.writeBytes("\r\n");
+            }
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());
