@@ -3,6 +3,7 @@ package type;
 public enum HttpHeaderOption {
     CONTENT_LENGTH("Content-Length"),
     SET_COOKIE("Set-Cookie"),
+    COOKIE("Cookie"),
     CONTENT_TYPE("Content-Type"),
     LOCATION("Location");
 

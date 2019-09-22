@@ -43,11 +43,9 @@ public class RequestHandler extends Thread {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
             HttpRequestHeader requestHeader = readHeader(br);
 
-            byte[] body = makeResponseBody(requestHeader.getUrl());
-
             DataOutputStream dos = new DataOutputStream(out);
             responseHeader(dos, makeResponseHeader(requestHeader, br));
-            responseBody(dos, body);
+            responseBody(dos, makeResponseBody(requestHeader));
         } catch (IOException e) {
             log.error(e.getMessage());
         }
@@ -68,7 +66,7 @@ public class RequestHandler extends Thread {
         return header;
     }
 
-    private Map<String, String> getRequestBodyByMethod(HttpRequestHeader header, BufferedReader br) throws IOException {
+    private Map<String, String> getRequestBody(HttpRequestHeader header, BufferedReader br) throws IOException {
         Map<String, String> requestBody = Maps.newHashMap();
         if ("GET".equals(header.getMethod()) && !header.getQueryStrings().isEmpty()) {
             requestBody = header.getQueryStrings();
@@ -81,7 +79,7 @@ public class RequestHandler extends Thread {
     }
 
     private HttpResponseHeader makeResponseHeader(HttpRequestHeader header, BufferedReader br) throws IOException {
-        Map<String, String> requestBody = getRequestBodyByMethod(header, br);
+        Map<String, String> requestBody = getRequestBody(header, br);
 
         if ("/user/create".equals(header.getUrl())) {
             DataBase.addUser(new User(requestBody.get("userId"),
@@ -115,19 +113,50 @@ public class RequestHandler extends Thread {
                     .headerOption(HttpHeaderOption.SET_COOKIE, cookie)
                     .build();
         }
+        if ("/user/list".equals(header.getUrl())) {
+            if (!isLogined(header)) {
+                return HttpResponseHeader.builder()
+                        .httpStatusCode(HttpStatusCode.REDIRECT)
+                        .headerOption(HttpHeaderOption.LOCATION, "/user/login.html")
+                        .build();
+            }
+        }
         return HttpResponseHeader.builder()
                 .httpStatusCode(HttpStatusCode.OK)
                 .build();
     }
 
-    private byte[] makeResponseBody(String url) throws IOException {
+    private byte[] makeResponseBody(HttpRequestHeader header) throws IOException {
         byte[] body = new byte[]{};
+        String url = header.getUrl();
 
         if (StringUtils.indexOfIgnoreCase(url, ".html") >= 0) {
             body = Files.readAllBytes(new File("./webapp" + url).toPath());
         }
+        if ("/user/list".equals(url) && isLogined(header)) {
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("<!DOCTYPE html>");
+            sb.append("<html lang=\"en\">");
+            sb.append("<body>");
+            sb.append("<ol>");
+            for (User user : DataBase.findAll()) {
+                sb.append("<li>" + user.getUserId() + "</li>");
+            }
+            sb.append("</ol>");
+            sb.append("</body>");
+            sb.append("</html>");
+            body = sb.toString().getBytes();
+        }
 
         return body;
+    }
+
+    private boolean isLogined(HttpRequestHeader header) {
+        String cookies = header.getHeaderOption(HttpHeaderOption.COOKIE.getName());
+        Map<String, String> cookieMap = HttpRequestUtils.parseCookies(cookies);
+
+        return Boolean.parseBoolean(cookieMap.get("logined"));
     }
 
     private void responseHeader(DataOutputStream dos, HttpResponseHeader header) {
