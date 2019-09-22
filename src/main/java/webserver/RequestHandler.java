@@ -6,17 +6,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import user.service.UserService;
 import user.view.UserView;
-import util.HttpRequestUtils;
-import util.IOUtils;
-import webserver.Response.ResponseHandler;
+import webserver.http.HttpRequest;
+import webserver.http.ResponseHandler;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Optional;
 
 public class RequestHandler extends Thread {
@@ -41,38 +38,19 @@ public class RequestHandler extends Thread {
     }
 
     public void run() {
-        log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(),
-                connection.getPort());
+        log.debug("New Client Connect! Connected IP : {}, Port : {}", connection.getInetAddress(), connection.getPort());
 
         try (InputStream in = connection.getInputStream();
-             OutputStream out = connection.getOutputStream();
-             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+             OutputStream out = connection.getOutputStream()) {
 
-            String line = bufferedReader.readLine();
-            String[] requestLine = line.split(StringUtils.SPACE);
-
-            boolean logined = false;
-            int contentLength = 0;
-            Map<String, String> cookies;
-            while (StringUtils.isNotBlank(line)) {
-                line = bufferedReader.readLine();
-                if (line.contains("Cookie")) {
-                    String cookieValue = line.split(":")[1].trim();
-                    cookies = HttpRequestUtils.parseCookies(cookieValue);
-                    logined = isLogin(cookies);
-                } else if (line.contains("Content-Length")) {
-                    contentLength = Integer.parseInt(HttpRequestUtils.parseHeader(line).getValue());
-                }
-            }
+            HttpRequest request = new HttpRequest(in);
 
             DataOutputStream dos = new DataOutputStream(out);
 
-            if (StringUtils.equals(requestLine[METHOD], GET)) {
-                getMapping(dos, requestLine, logined);
-            } else if (StringUtils.equals(requestLine[METHOD], POST)) {
-                String body = IOUtils.readData(bufferedReader, contentLength);
-                Map<String, String> params = HttpRequestUtils.parseQueryString(body);
-                postMapping(dos, requestLine, params, logined);
+            if (StringUtils.equals(request.getMethod(), GET)) {
+                getMapping(dos, request);
+            } else if (StringUtils.equals(request.getMethod(), POST)) {
+                postMapping(dos, request);
             }
 
         } catch (IOException e) {
@@ -80,22 +58,22 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private void getMapping(DataOutputStream dos, String[] requestLine, boolean logined) throws IOException {
-        String url = requestLine[URL];
-        String paramsString = StringUtils.EMPTY;
-
-        if (requestLine[URL].contains("?")) {
-            int index = requestLine[URL].indexOf("?");
-            url = requestLine[URL].substring(0, index);
-            paramsString = url.substring(index + 1);
-        }
+    private void getMapping(DataOutputStream dos, HttpRequest request) throws IOException {
+        String url = request.getUrl();
+        boolean logined = isLogin(request.getCookie(LOGIN_KEY));
 
         if (StringUtils.equals(url, "/")) {
             byte[] body = "Hello World".getBytes();
             ResponseHandler.response200Header(dos, body);
         } else if (StringUtils.equals(url, "/user/create")) {
-            Map<String, String> params = HttpRequestUtils.parseQueryString(paramsString);
-            userService.addUser(params);
+            User user = User.builder()
+                            .userId(request.getParameter("userId"))
+                            .password(request.getParameter("password"))
+                            .name(request.getParameter("name"))
+                            .email(request.getParameter("email"))
+                            .build();
+
+            userService.addUser(user);
             ResponseHandler.response302Header(dos, "/index.html", logined);
         } else if (StringUtils.equals(url, "/user/list")) {
             if (!logined) {
@@ -116,18 +94,27 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private void postMapping(DataOutputStream dos, String[] requestLine, Map<String, String> params, boolean logined) throws IOException {
-        String url = requestLine[URL];
+    private void postMapping(DataOutputStream dos, HttpRequest request) throws IOException {
+        String url = request.getUrl();
+        boolean logined = isLogin(request.getCookie(LOGIN_KEY));
 
         if (url.contains("?")) {
             int index = url.indexOf("?");
             url = url.substring(0, index);
         }
         if (StringUtils.equals(url, "/user/create")) {
-            userService.addUser(params);
+            User user = User.builder()
+                            .userId(request.getParameter("userId"))
+                            .password(request.getParameter("password"))
+                            .name(request.getParameter("name"))
+                            .email(request.getParameter("email"))
+                            .build();
+
+            userService.addUser(user);
             ResponseHandler.response302Header(dos, "/index.html", logined);
         } else if (StringUtils.equals(url, "/user/login")) {
-            User user = userService.findUserById(params);
+            String userId = request.getParameter("userId");
+            User user = userService.findUserById(userId);
 
             if (user == null) {
                 ResponseHandler.response302Header(dos, "/user/login_failed.html", false);
@@ -136,10 +123,10 @@ public class RequestHandler extends Thread {
         }
     }
 
-    private boolean isLogin(Map<String, String> cookies) {
-        return Optional.ofNullable(cookies.get(LOGIN_KEY))
-                .map(Boolean::valueOf)
-                .orElse(false);
+    private boolean isLogin(String loginValue) {
+        return Optional.ofNullable(loginValue)
+                       .map(Boolean::valueOf)
+                       .orElse(false);
     }
 
     private Path viewResolver(String url) {
