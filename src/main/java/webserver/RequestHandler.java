@@ -137,7 +137,7 @@ public class RequestHandler extends Thread {
 					} else if ("/user/login".equals(url)) {
 
 						User user = DataBase.findUserById(params.get("userId"));
-						boolean logined= false;
+						boolean logined = false;
 
 						if (user == null) {
 							url = "/user/login_failed.html";
@@ -149,7 +149,6 @@ public class RequestHandler extends Thread {
 								url = "/user/login_failed.html";
 							}
 						}
-						
 						response302LoginHeader(dos, logined, url);
 					} else {
 						make200Response(dos, contentType, url);
@@ -188,7 +187,6 @@ public class RequestHandler extends Thread {
 		byte[] body = Files.readAllBytes(new File("./webapp" + url).toPath());
 		response200Header(dos, contentType, body.length);
 		responseBody(dos, body);
-
 	}
 
 	private void response200Header(DataOutputStream dos, String contentType, int bodyLength) {
