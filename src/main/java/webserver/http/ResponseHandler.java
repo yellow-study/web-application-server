@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Created by juhyung0818@naver.com on 2019. 9. 1.
@@ -12,11 +13,17 @@ import java.io.IOException;
 public class ResponseHandler {
     private static final Logger log = LoggerFactory.getLogger(ResponseHandler.class);
 
-    public static void response200Header(DataOutputStream dos, byte[] body) {
+    public static void response200Header(DataOutputStream dos, Map<String, String> header, byte[] body) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + body.length + "\r\n");
+            header.forEach((key, value) -> {
+                try {
+                    dos.writeBytes(key + ":" + value + "\r\n");
+                } catch (IOException e) {
+                    log.error(e.getMessage());
+                }
+            });
             dos.writeBytes("\r\n");
 
             responseBody(dos, body);
@@ -25,24 +32,19 @@ public class ResponseHandler {
         }
     }
 
-    public static void response200HeaderForCss(DataOutputStream dos, byte[] body) {
-        try {
-            dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/css;charset=utf-8\r\n");
-            dos.writeBytes("Content-Length: " + body.length + "\r\n");
-            dos.writeBytes("\r\n");
-
-            responseBody(dos, body);
-        } catch (IOException e) {
-            log.error(e.getMessage());
-        }
-    }
-
-    public static void response302Header(DataOutputStream dos, String url, boolean logined) {
+    public static void response302Header(DataOutputStream dos, Map<String, String> header, String redirectUrl) {
         try {
             dos.writeBytes("HTTP/1.1 302 Redirect \r\n");
-            dos.writeBytes("Location: " + url + "\r\n");
-            dos.writeBytes("Set-Cookie: logined=" + logined + "\r\n");
+            dos.writeBytes("Location: " + redirectUrl + "\r\n");
+
+            header.forEach((key, value) -> {
+                try {
+                    dos.writeBytes(key + ":" + value + "\r\n");
+                } catch (IOException e) {
+                    log.error(e.getMessage());
+                }
+            });
+
             dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.error(e.getMessage());

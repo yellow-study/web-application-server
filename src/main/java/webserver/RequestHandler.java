@@ -7,11 +7,10 @@ import org.slf4j.LoggerFactory;
 import user.service.UserService;
 import user.view.UserView;
 import webserver.http.HttpRequest;
-import webserver.http.ResponseHandler;
+import webserver.http.HttpResponse;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Optional;
@@ -62,10 +61,9 @@ public class RequestHandler extends Thread {
         String url = request.getUrl();
         boolean logined = isLogin(request.getCookie(LOGIN_KEY));
 
-        if (StringUtils.equals(url, "/")) {
-            byte[] body = "Hello World".getBytes();
-            ResponseHandler.response200Header(dos, body);
-        } else if (StringUtils.equals(url, "/user/create")) {
+        HttpResponse httpResponse = new HttpResponse();
+
+        if (StringUtils.equals(url, "/user/create")) {
             User user = User.builder()
                             .userId(request.getParameter("userId"))
                             .password(request.getParameter("password"))
@@ -74,29 +72,29 @@ public class RequestHandler extends Thread {
                             .build();
 
             userService.addUser(user);
-            ResponseHandler.response302Header(dos, "/index.html", logined);
+            httpResponse.sendRedirect(dos, "/index.html");
         } else if (StringUtils.equals(url, "/user/list")) {
             if (!logined) {
-                ResponseHandler.response302Header(dos, "/user/login.html", false);
+                httpResponse.sendRedirect(dos, "/login.html");
                 return;
             }
 
             Collection<User> users = userService.findAll();
             String view = userView.getUserListView(users);
-            byte[] bytes = view.getBytes();
-            ResponseHandler.response200Header(dos, bytes);
-        } else if (url.endsWith(".css")) {
-            byte[] bytes = Files.readAllBytes(viewResolver(url));
-            ResponseHandler.response200HeaderForCss(dos, bytes);
+
+            httpResponse.forward(dos, url);
+
+            byte[] body = view.getBytes();
+            httpResponse.responseBody(dos, body);
         } else {
-            byte[] bytes = Files.readAllBytes(viewResolver(url));
-            ResponseHandler.response200Header(dos, bytes);
+            httpResponse.forward(dos, url);
         }
     }
 
     private void postMapping(DataOutputStream dos, HttpRequest request) throws IOException {
         String url = request.getUrl();
-        boolean logined = isLogin(request.getCookie(LOGIN_KEY));
+
+        HttpResponse httpResponse = new HttpResponse();
 
         if (url.contains("?")) {
             int index = url.indexOf("?");
@@ -111,15 +109,15 @@ public class RequestHandler extends Thread {
                             .build();
 
             userService.addUser(user);
-            ResponseHandler.response302Header(dos, "/index.html", logined);
+            httpResponse.sendRedirect(dos, "/index.html");
         } else if (StringUtils.equals(url, "/user/login")) {
             String userId = request.getParameter("userId");
             User user = userService.findUserById(userId);
 
             if (user == null) {
-                ResponseHandler.response302Header(dos, "/user/login_failed.html", false);
+                httpResponse.sendRedirect(dos, "/user/login_failed.html");
             }
-            ResponseHandler.response302Header(dos, "/index.html", true);
+            httpResponse.sendRedirect(dos, "/index.html");
         }
     }
 
