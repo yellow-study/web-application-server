@@ -20,7 +20,13 @@ public class HttpResponse {
 
     private Map<String, String> header = new HashMap<>();
 
-    public void forward(DataOutputStream dos, String url) throws IOException {
+    private DataOutputStream dos;
+
+    public HttpResponse(DataOutputStream dos) {
+        this.dos = dos;
+    }
+
+    public void forward(String url) throws IOException {
         if (url.endsWith(".css")) {
             header.put("Content-Type:", "text/css");
         } else if (url.endsWith(".js")) {
@@ -33,13 +39,12 @@ public class HttpResponse {
         ResponseHandler.response200Header(dos, header, body);
     }
 
-    public void responseBody(DataOutputStream dos, byte[] body) throws IOException {
+    public void responseBody(byte[] body) throws IOException {
         header.put("Content-Type:", "text/html;charset=utf-8");
         ResponseHandler.response200Header(dos, header, body);
     }
 
-
-    public void sendRedirect(DataOutputStream dos, String redirectUrl) {
+    public void sendRedirect(String redirectUrl) {
         ResponseHandler.response302Header(dos, header, redirectUrl);
     }
 

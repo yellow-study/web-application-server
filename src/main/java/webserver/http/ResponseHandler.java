@@ -19,7 +19,7 @@ public class ResponseHandler {
             dos.writeBytes("Content-Length: " + body.length + "\r\n");
             header.forEach((key, value) -> {
                 try {
-                    dos.writeBytes(key + ":" + value + "\r\n");
+                    dos.writeBytes(key + ": " + value + "\r\n");
                 } catch (IOException e) {
                     log.error(e.getMessage());
                 }
