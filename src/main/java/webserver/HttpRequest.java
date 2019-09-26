@@ -4,28 +4,77 @@
  */
 package webserver;
 
+import db.DataBase;
+import model.User;
+import util.HttpRequestUtils;
+
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 public class HttpRequest {
-	private InputStream in;
+    private static final String URL_DELIMITER = " ";
+    private static final int NOT_EXISTS = -1;
+    private Map<String, String> header;
+    private Map<String, String> parameter;
+    private String method;
+    private String path;
 
-	public HttpRequest(InputStream in) {
-		this.in = in;
-	}
+    public HttpRequest(InputStream in) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        String requestLine = reader.readLine();
+        String[] tokens = requestLine.split(URL_DELIMITER);
+        header = new HashMap<>();
 
-	public String getMethod() {
-		return null;
-	}
+        method = tokens[0];
+        String url = tokens[1];
+        String requestHeader;
 
-	public String getPath() {
-		return null;
-	}
+        while (!"".equals(requestHeader = reader.readLine())) {
+            HttpRequestUtils.Pair headerPair = HttpRequestUtils.parseHeader(requestHeader);
+            header.put(headerPair.getKey(), headerPair.getValue());
+        }
 
-	public String getHeader(String connection) {
-		return null;
-	}
+        if (method.equals(("GET"))) {
+            int questionMarkIndex = url.indexOf("?");
 
-	public String getParameter(String userId) {
-		return null;
-	}
+            if (questionMarkIndex != NOT_EXISTS) {
+                path = url.substring(0, questionMarkIndex);
+                String queryString = url.substring(questionMarkIndex + 1);
+                parameter = HttpRequestUtils.parseQueryString(queryString);
+            } else {
+                path = url;
+            }
+        } else if (method.equals("POST")) {
+
+        }
+
+
+
+    }
+
+
+    public String getMethod() {
+        return method;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getHeader(String key) {
+        return header.get(key);
+    }
+
+    public String getParameter(String key) {
+        if (parameter != null) {
+            return parameter.get(key);
+        } else {
+            return null;
+        }
+    }
 }

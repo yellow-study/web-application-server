@@ -24,8 +24,8 @@ public class HttpRequestTest {
 
 		assertEquals("GET", request.getMethod());
 		assertEquals("/user/create", request.getPath());
-		assertEquals("keep-alive", request.getHeader("Connection"));
 		assertEquals("test", request.getParameter("userId"));
+		assertEquals("keep-alive", request.getHeader("Connection"));
 	}
 
 	@Test
