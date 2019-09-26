@@ -20,6 +20,7 @@ import db.DataBase;
 import util.HttpRequestUtils;
 import util.IOUtils;
 import webserver.handler.HttpRequestHandler;
+import webserver.handler.LoginUserHandler;
 import webserver.handler.StaticResourceHandler;
 import webserver.handler.UserRegisterHandler;
 import webserver.http.HttpRequest;
@@ -45,6 +46,7 @@ public class RequestHandler extends Thread {
 		staticResourceHandler = new StaticResourceHandler();
 		handlers = new HashMap<>();
 		handlers.put("/user/create", new UserRegisterHandler());
+		handlers.put("/user/login", new LoginUserHandler());
 	}
 
 	public void run() {
@@ -53,7 +55,7 @@ public class RequestHandler extends Thread {
 
 		try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
 			BufferedReader br = new BufferedReader(new InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
-			HttpRequest request = handleRequest(br);
+			HttpRequest request = HttpRequest.create(br);
 			HttpResponse httpResponse = handleAction(request.getUrl(), request);
 			handleResponse(out, httpResponse);
 
@@ -61,25 +63,6 @@ public class RequestHandler extends Thread {
 		} catch (Exception e) {
 			log.error(e.getMessage(), e);
 		}
-	}
-
-	private HttpRequest handleRequest(BufferedReader br) throws IOException {
-		String line = br.readLine();
-
-		HttpRequest request = HttpRequest.create(line);
-
-		while (!"".equals(line)) {
-			line = br.readLine();
-			request.parseHeaderLine(line);
-		}
-
-		Integer contentLength = MapUtils.getInteger(request.getHeader(), "Content-Length");
-		if (StringUtils.equalsIgnoreCase(request.getMethod(), "POST") && contentLength != null) {
-			String data = IOUtils.readData(br, contentLength);
-			request.setBody(HttpRequestUtils.parseValues(data, "&"));
-		}
-		log.debug("request : {}", request);
-		return request;
 	}
 
 	private HttpResponse handleAction(String url, HttpRequest request) throws Exception {

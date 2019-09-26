@@ -5,7 +5,10 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import util.HttpRequestUtils;
+import util.IOUtils;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,23 +20,28 @@ import org.apache.commons.lang3.StringUtils;
 /**
  * Created by juhyung0818@naver.com on 2019. 9. 5.
  */
-@Getter
-@Setter
+
+
 @ToString
 public class HttpRequest {
+	@Getter
 	private String method;
+	@Getter
 	private String url;
+	@Getter
 	private String httpVersion;
 
 	private Map<String, String> body;
 	private Map<String, String> header;
 
-	public static HttpRequest create(String line) {
+	public static HttpRequest create(BufferedReader bufferedReader) throws IOException {
 		HttpRequest httpRequest = new HttpRequest();
+
+		String line = bufferedReader.readLine();
 		String[] request = line.split(" ");
-		httpRequest.setMethod(request[0]);
-		httpRequest.setUrl(request[1]);
-		httpRequest.setHttpVersion(request[2]);
+		httpRequest.method = request[0];
+		httpRequest.url = request[1];
+		httpRequest.httpVersion = request[2];
 
 		String urlAndParam = request[1];
 
@@ -41,14 +49,25 @@ public class HttpRequest {
 
 		if (index >= 0) {
 			String params = urlAndParam.substring(index + 1);
-			httpRequest.setUrl(urlAndParam.substring(0, index));
-			httpRequest.setBody(HttpRequestUtils.parseQueryString(params));
+			httpRequest.url = urlAndParam.substring(0, index);
+			httpRequest.body = HttpRequestUtils.parseQueryString(params);
+		}
+
+		while (!"".equals(line)) {
+			line = bufferedReader.readLine();
+			httpRequest.parseHeaderLine(line);
+		}
+
+		if(StringUtils.equalsIgnoreCase(httpRequest.method, "POST")) {
+			Integer contentLength = MapUtils.getInteger(httpRequest.header, "Content-Length");
+			String data = IOUtils.readData(bufferedReader, contentLength);
+			httpRequest.body = HttpRequestUtils.parseValues(data, "&");
 		}
 
 		return httpRequest;
 	}
 
-	public void parseHeaderLine(String line) {
+	private void parseHeaderLine(String line) {
 		if (StringUtils.isBlank(line)) {
 			return;
 		}
@@ -63,5 +82,13 @@ public class HttpRequest {
 		} else {
 			header.put(data[0], data[1].trim());
 		}
+	}
+
+	public String getHeaderValue(String key) {
+		return MapUtils.getString(this.header, (key));
+	}
+
+	public String getBodyValue(String key) {
+		return MapUtils.getString(this.body, (key));
 	}
 }

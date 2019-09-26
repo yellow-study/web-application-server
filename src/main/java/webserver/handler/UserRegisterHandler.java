@@ -14,13 +14,11 @@ import webserver.http.HttpResponse;
 public class UserRegisterHandler implements HttpRequestHandler {
 	@Override
 	public HttpResponse execute(HttpRequest request) throws Exception {
-		Map<String, String> body = request.getBody();
-
 		User user = User.builder()
-			.userId(body.get("userId"))
-			.password(body.get("password"))
-			.name(body.get("name"))
-			.email(body.get("email"))
+			.userId(request.getBodyValue("userId"))
+			.password(request.getBodyValue("password"))
+			.name(request.getBodyValue("name"))
+			.email(request.getBodyValue("email"))
 			.build();
 		DataBase.addUser(user);
 
