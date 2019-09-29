@@ -4,8 +4,6 @@
  */
 package webserver;
 
-import util.HttpRequestUtils;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,53 +15,55 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import util.HttpRequestUtils;
+import util.IOUtils;
+
 public class HttpRequest {
 	private static final Logger log = LoggerFactory.getLogger(HttpRequest.class);
-	private static final String URL_DELIMITER = " ";
-	private static final int NOT_EXISTS = -1;
-	private Map<String, String> headers;
-	private Map<String, String> parameters;
-	private String method;
-	private String path;
 
-	public HttpRequest(InputStream in) throws IOException {
-		BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-		String requestLine = reader.readLine();
-		String[] tokens = requestLine.split(URL_DELIMITER);
-		headers = new HashMap<>();
+	private Map<String, String> headers = new HashMap<String, String>();
+	private Map<String, String> parameters = new HashMap<String, String>();
+	private RequestLine requestLine;
 
-		method = tokens[0];
-		String url = tokens[1];
-		String headerLine;
+	public HttpRequest(InputStream in) {
 
-		while (!"".equals(headerLine = reader.readLine())) {
-			HttpRequestUtils.Pair headerPair = HttpRequestUtils.parseHeader(headerLine);
-			headers.put(headerPair.getKey(), headerPair.getValue());
-		}
+		try {
+			BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+			String line = reader.readLine();
 
-		if (method.equals(("GET"))) {
-			int questionMarkIndex = url.indexOf("?");
-
-			if (questionMarkIndex != NOT_EXISTS) {
-				path = url.substring(0, questionMarkIndex);
-				String queryString = url.substring(questionMarkIndex + 1);
-				parameters = HttpRequestUtils.parseQueryString(queryString);
-			} else {
-				path = url;
+			if (line == null) {
+				return;
 			}
-		} else if (method.equals("POST")) {
-			path = url;
-			String bodyLine = reader.readLine();
-			parameters = HttpRequestUtils.parseQueryString(bodyLine);
+			requestLine = new RequestLine(line);
+
+			String headerLine;
+
+			while (!"".equals(headerLine = reader.readLine())) {
+				log.debug("header line : {}", headerLine);
+				HttpRequestUtils.Pair headerPair = HttpRequestUtils.parseHeader(headerLine);
+				headers.put(headerPair.getKey(), headerPair.getValue());
+			}
+
+			if (HttpMethod.POST==getMethod()) {
+				if (headers.containsKey("Content-Length") || true) {
+					String body = IOUtils.readData(reader, Integer.parseInt(headers.get("Content-Length")));
+					parameters = HttpRequestUtils.parseQueryString(body);
+				}
+			} else {
+				parameters = requestLine.getParameter();
+			}
+		} catch (IOException io) {
+			log.error(io.getMessage());
 		}
+
 	}
 
-	public String getMethod() {
-		return method;
+	public HttpMethod getMethod() {
+		return requestLine.getMethod();
 	}
 
 	public String getPath() {
-		return path;
+		return requestLine.getPath();
 	}
 
 	public String getHeader(String key) {
@@ -71,10 +71,6 @@ public class HttpRequest {
 	}
 
 	public String getParameter(String key) {
-		if (parameters != null) {
-			return parameters.get(key);
-		} else {
-			return null;
-		}
+		return parameters.get(key);
 	}
 }
