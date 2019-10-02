@@ -5,7 +5,6 @@ import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.HttpRequestUtils;
-import util.IOUtils;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -16,8 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RequestHandler extends Thread {
-	private static final String GET = "GET";
-	private static final String POST = "POST";
+
 	private static final int NOT_EXISTS = -1;
 
 	private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -33,7 +31,6 @@ public class RequestHandler extends Thread {
 			connection.getPort());
 
 		try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
-			BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
 			HttpRequest request = new HttpRequest(in);
 
@@ -101,76 +98,6 @@ public class RequestHandler extends Thread {
 			log.error(e.getMessage());
 		}
 	}
-	/*		if (GET.equals(method)) {
-				int questionMarkIndex = url.indexOf("?");
-	
-				if (questionMarkIndex != NOT_EXISTS) {
-					String uri = url.substring(0, questionMarkIndex);
-					String queryString = url.substring(questionMarkIndex + 1);
-					Map<String, String> params = HttpRequestUtils.parseQueryString(queryString);
-	
-					if ("/user/create".equals(uri)) {
-						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
-							params.get("email"));
-						DataBase.addUser(user);
-	
-						url = "/index.html";
-						response302Header(dos, url);
-					}
-				} else {
-	
-					if ("/user/list".equals(url)) {
-						boolean isLogined = Boolean.parseBoolean(cookies.get("logined"));
-	
-						if (isLogined) {
-							String html = getUserListPage();
-							makeUserList200Response(dos, contentType, html.getBytes());
-						} else {
-							response302LoginHeader(dos, isLogined, "login.html");
-						}
-					} else {
-						make200Response(dos, contentType, url);
-					}
-				}
-			}
-	
-			if (POST.equals(method)) {
-				if (contentLength != null) {
-					String body = IOUtils.readData(reader, Integer.parseInt(contentLength.getValue()));
-					Map<String, String> params = HttpRequestUtils.parseQueryString(body);
-	
-					if ("/user/create".equals(url)) {
-						User user = new User(params.get("userId"), params.get("password"), params.get("name"),
-							params.get("email"));
-						DataBase.addUser(user);
-	
-						url = "/index.html";
-						response302Header(dos, url);
-	
-					} else if ("/user/login".equals(url)) {
-	
-						User user = DataBase.findUserById(params.get("userId"));
-						boolean logined = false;
-	
-						if (user == null) {
-							url = "/user/login_failed.html";
-						} else {
-							if (user.getPassword().equals(params.get("password"))) {
-								url = "/index.html";
-								logined = true;
-							} else {
-								url = "/user/login_failed.html";
-							}
-						}
-						response302LoginHeader(dos, logined, url);
-					} else {
-						make200Response(dos, contentType, url);
-					}
-				}
-			}
-		}catch(IOException e){
-			log.error(e.getMessage());
-		}*/
 
 	private String getDefualtPath(String path) {
 		if (path.equals("/")) {

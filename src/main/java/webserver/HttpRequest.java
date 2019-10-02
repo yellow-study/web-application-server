@@ -44,7 +44,7 @@ public class HttpRequest {
 				headers.put(headerPair.getKey(), headerPair.getValue());
 			}
 
-			if (HttpMethod.POST==getMethod()) {
+			if (HttpMethod.POST == getMethod()) {
 				if (headers.containsKey("Content-Length") || true) {
 					String body = IOUtils.readData(reader, Integer.parseInt(headers.get("Content-Length")));
 					parameters = HttpRequestUtils.parseQueryString(body);
