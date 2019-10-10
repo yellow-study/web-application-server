@@ -31,11 +31,16 @@ public class HttpRequest {
 		String headerInfo;
 		String contentLength = null;
 
+		Map<String, String> cookies = new HashMap<String, String>();
+		cookies.put("logined", "false");
+
 		while (!"".equals(headerInfo = reader.readLine())) {
 			HttpRequestUtils.Pair headerPair = HttpRequestUtils.parseHeader(headerInfo);
 			String key = headerPair.getKey();
 			if (key.equals("Content-Length")) {
 				contentLength = headerPair.getValue();
+			} else if(key.equals(("Cookie"))){
+				cookies = HttpRequestUtils.parseCookies(headerPair.getValue());
 			}
 			header.put(key, headerPair.getValue());
 		}
