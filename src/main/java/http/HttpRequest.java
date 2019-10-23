@@ -4,10 +4,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import util.HttpRequestUtils;
 import util.IOUtils;
 
 public class HttpRequest {
@@ -58,6 +60,14 @@ public class HttpRequest {
 
 	public String getHeader(String name) {
 		return headers.getHeader(name);
+	}
+
+	public String getCookie(String name) {
+		return HttpRequestUtils.parseCookies(headers.getHeader("Cookie")).get(name);
+	}
+
+	public HttpSession getSession() {
+		return HttpSessions.getHttpSession(getCookie("JSESSIONID"));
 	}
 
 	public String getParameter(String name) {
