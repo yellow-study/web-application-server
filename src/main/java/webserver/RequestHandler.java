@@ -1,7 +1,12 @@
 package webserver;
 
+import controller.Controller;
 import http.HttpRequest;
 import http.HttpResponse;
+import http.HttpSessions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import util.HttpRequestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,12 +14,6 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.util.Map;
 import java.util.UUID;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import controller.Controller;
-import util.HttpRequestUtils;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -33,11 +32,10 @@ public class RequestHandler extends Thread {
             HttpRequest request = new HttpRequest(in);
             HttpResponse response = new HttpResponse(out);
 
-            if(getSessionId(request.getHeader("Cookie")) == null) {
+            if (HttpRequestUtils.getCookieValue(request.getHeader("Cookie"), "JSESSIONID") == null) {
                 String uuid = UUID.randomUUID().toString();
-                String cookie = request.getHeader("Cookie");
-
-                response.addHeader("Cookie", "JSESSIONID="+uuid + ";");
+                HttpSessions.createSession(uuid);
+                response.addHeader("Set-Cookie", "JSESSIONID="+uuid + ";");
             }
 
             Controller controller = RequestMapping.getController(request.getPath());
@@ -57,10 +55,5 @@ public class RequestHandler extends Thread {
             return "/index.html";
         }
         return path;
-    }
-
-    private String getSessionId(String cookieValue) {
-        Map<String, String> cookies = HttpRequestUtils.parseCookies(cookieValue);
-        return cookies.get("JSESSIONID");
     }
 }

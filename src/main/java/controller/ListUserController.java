@@ -6,6 +6,8 @@ import http.HttpResponse;
 import java.util.Collection;
 import java.util.Map;
 
+import http.HttpSession;
+import http.HttpSessions;
 import model.User;
 import util.HttpRequestUtils;
 import db.DataBase;
@@ -33,11 +35,6 @@ public class ListUserController extends AbstractController {
     }
 
     private boolean isLogin(String cookieValue) {
-        Map<String, String> cookies = HttpRequestUtils.parseCookies(cookieValue);
-        String value = cookies.get("logined");
-        if (value == null) {
-            return false;
-        }
-        return Boolean.parseBoolean(value);
+        return HttpSessions.isLogin(HttpRequestUtils.getCookieValue(cookieValue, "JSESSIONID"));
     }
 }
