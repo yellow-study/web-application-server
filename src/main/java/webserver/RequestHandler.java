@@ -38,9 +38,9 @@ public class RequestHandler extends Thread {
 			connection.getPort());
 
 		try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream(); BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-			// TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
 			String line = br.readLine();
 			int contentLength = 0;
+
 			Map<String, String> cookieMap = new HashMap<>();
 			cookieMap.put("logined", "false");
 
@@ -91,7 +91,7 @@ public class RequestHandler extends Thread {
 				}
 
 			} else if ("/user/list.html".equals(url)) {
-				if ("false".equals(cookieMap.get("logined"))) {
+				if (!Boolean.parseBoolean(cookieMap.get("logined"))) {
 					responseResource(out, "/user/login.html");
 
 					return;
